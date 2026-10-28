@@ -1,21 +1,51 @@
 package config
 
-import "os"
+import (
+	"bufio"
+	"os"
+	"strings"
+)
 
-type DatabseConfig struct {
-	URL  string `json:"url"`
-	Port int    `json:"port"`
+type DatabaseConfig struct {
+	URL string `json:"url"`
 }
 
+type DatabseConfig = DatabaseConfig
+
 type Config struct {
-	Database DatabseConfig `json:"database"`
+	Database DatabaseConfig `json:"database"`
+}
+
+func loadEnv() {
+	file, err := os.Open(".env")
+	if err != nil {
+		return
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 {
+			key := strings.TrimSpace(parts[0])
+			val := strings.TrimSpace(parts[1])
+			val = strings.Trim(val, `"'`)
+			if _, exists := os.LookupEnv(key); !exists {
+				os.Setenv(key, val)
+			}
+		}
+	}
 }
 
 func NewConfig() Config {
+	loadEnv()
 	return Config{
-		Database: DatabseConfig{
-			URL:  getConfig("DATABASE_URL", ""),
-			Port: 0,
+		Database: DatabaseConfig{
+			URL: getConfig("DATABASE_URL", ""),
 		},
 	}
 }

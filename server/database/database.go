@@ -18,7 +18,15 @@ func Connect(dsn string) *gorm.DB {
 	}
 	return db
 }
-
 func Migrate(db *gorm.DB) error {
-	return db.AutoMigrate(&models.Product{})
+	allModels := models.AllModels()
+	log.Printf("[Migration] Running auto migration for %d model(s)...", len(allModels))
+
+	if err := db.AutoMigrate(allModels...); err != nil {
+		log.Printf("[Migration] Auto migration failed: %v", err)
+		return err
+	}
+
+	log.Println("[Migration] Auto migration completed")
+	return nil
 }

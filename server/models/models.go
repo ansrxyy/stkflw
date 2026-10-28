@@ -1,7 +1,7 @@
 package models
 
-import "gorm.io/gorm"
-
-type Database struct {
-	db *gorm.DB
+func AllModels() []interface{} {
+	return []interface{}{
+		&Product{},
+	}
 }
