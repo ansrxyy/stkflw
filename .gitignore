@@ -1,0 +1,39 @@
+# === OS ===
+.DS_Store
+Thumbs.db
+
+# === Editors / IDEs ===
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# === Go (backend) ===
+# Air hot-reload build output
+server/tmp/
+tmp/
+*.log
+
+# Go build artifacts
+server/main
+*.exe
+*.test
+*.out
+
+# === Environment files ===
+.env
+.env.*
+!.env.example
+server/.env
+
+# === Node / frontend ===
+node_modules/
+dist/
+build/
+.vite/
+*.local
+
+# === Docker ===
+# (kept separate; Dockerfile/docker-compose stay tracked)
+
+*.log
