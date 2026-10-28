@@ -87,3 +87,41 @@ func (h *ProductHandler) DeleteProduct(c *gin.Context) {
 
 	c.JSON(http.StatusOK, dto.NewSuccessResponse("Product deleted successfully"))
 }
+
+func (h *ProductHandler) AdjustStock(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse("INVALID_ID", "Invalid product ID"))
+		return
+	}
+
+	var req dto.AdjustStockRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse("INVALID_JSON", err.Error()))
+		return
+	}
+
+	product, err := h.productService.AdjustStock(id, req)
+	if err != nil {
+		HandleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.NewSuccessResponse(product, "Stock adjusted successfully"))
+}
+
+func (h *ProductHandler) GetMovements(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse("INVALID_ID", "Invalid product ID"))
+		return
+	}
+
+	movements, err := h.productService.GetMovements(id)
+	if err != nil {
+		HandleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": movements})
+}

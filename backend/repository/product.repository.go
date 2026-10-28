@@ -1,11 +1,11 @@
 package repository
 
 import (
-	"fmt"
 	"strings"
 
 	"ansarfadillah.tech/stkflw/models"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type ListProductsFilter struct {
@@ -19,11 +19,14 @@ type IProductRepository interface {
 	ListProducts(filter ListProductsFilter) ([]models.Product, int64, error)
 	CreateProduct(p *models.Product) error
 	GetProduct(id int64) (*models.Product, error)
+	GetProductWithLock(tx *gorm.DB, id int64) (*models.Product, error)
 	GetProductBySKU(sku string) (*models.Product, error)
+	GetProductBySKUWithLock(tx *gorm.DB, sku string) (*models.Product, error)
 	UpdateProduct(p *models.Product) error
+	UpdateStock(tx *gorm.DB, id int64, newStock int) error
 	DeleteProduct(id int64) error
 	HasMovementHistory(productID int64) (bool, error)
-	AdjustStock(tx *gorm.DB, productID int64, typ string, qty int, note string) error
+	CreateMovement(tx *gorm.DB, movement *models.StockMovement) error
 	GetMovements(productID int64) ([]models.StockMovement, error)
 	GetDB() *gorm.DB
 }
@@ -127,6 +130,19 @@ func (r *ProductRepository) GetProduct(id int64) (*models.Product, error) {
 	return &p, nil
 }
 
+func (r *ProductRepository) GetProductWithLock(tx *gorm.DB, id int64) (*models.Product, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	var p models.Product
+	err := db.Clauses(clause.Locking{Strength: "UPDATE"}).First(&p, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
 func (r *ProductRepository) GetProductBySKU(sku string) (*models.Product, error) {
 	var p models.Product
 	err := r.db.Table("products").
@@ -142,6 +158,19 @@ func (r *ProductRepository) GetProductBySKU(sku string) (*models.Product, error)
 	return &p, nil
 }
 
+func (r *ProductRepository) GetProductBySKUWithLock(tx *gorm.DB, sku string) (*models.Product, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	var p models.Product
+	err := db.Clauses(clause.Locking{Strength: "UPDATE"}).Where("sku = ?", sku).First(&p).Error
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
 func (r *ProductRepository) UpdateProduct(p *models.Product) error {
 	return r.db.Model(&models.Product{}).
 		Where("id = ?", p.ID).
@@ -150,6 +179,14 @@ func (r *ProductRepository) UpdateProduct(p *models.Product) error {
 			"price":     p.Price,
 			"is_active": p.IsActive,
 		}).Error
+}
+
+func (r *ProductRepository) UpdateStock(tx *gorm.DB, id int64, newStock int) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	return db.Model(&models.Product{}).Where("id = ?", id).Update("stock", newStock).Error
 }
 
 func (r *ProductRepository) HasMovementHistory(productID int64) (bool, error) {
@@ -162,38 +199,17 @@ func (r *ProductRepository) DeleteProduct(id int64) error {
 	return r.db.Delete(&models.Product{}, id).Error
 }
 
-func (r *ProductRepository) AdjustStock(tx *gorm.DB, productID int64, typ string, qty int, note string) error {
+func (r *ProductRepository) CreateMovement(tx *gorm.DB, movement *models.StockMovement) error {
 	db := tx
 	if db == nil {
 		db = r.db
 	}
-
-	if typ == "in" {
-		if err := db.Exec("UPDATE products SET stock = stock + ? WHERE id = ?", qty, productID).Error; err != nil {
-			return err
-		}
-	} else {
-		result := db.Exec("UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?", qty, productID, qty)
-		if result.Error != nil {
-			return result.Error
-		}
-		if result.RowsAffected == 0 {
-			return fmt.Errorf("INSUFFICIENT_STOCK")
-		}
-	}
-
-	movement := models.StockMovement{
-		ProductID: productID,
-		Type:      typ,
-		Qty:       qty,
-		Note:      note,
-	}
-	return db.Create(&movement).Error
+	return db.Create(movement).Error
 }
 
 func (r *ProductRepository) GetMovements(productID int64) ([]models.StockMovement, error) {
 	var movements []models.StockMovement
-	err := r.db.Where("product_id = ?", productID).Order("created_at DESC").Find(&movements).Error
+	err := r.db.Where("product_id = ?", productID).Order("created_at DESC, id DESC").Find(&movements).Error
 	if movements == nil {
 		movements = []models.StockMovement{}
 	}

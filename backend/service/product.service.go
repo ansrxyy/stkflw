@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -20,6 +21,8 @@ var (
 	ErrInvalidName       = dto.NewAppError(http.StatusBadRequest, "VALIDATION_ERROR", "Name is required")
 	ErrInvalidPrice      = dto.NewAppError(http.StatusBadRequest, "VALIDATION_ERROR", "Price must be a non-negative integer")
 	ErrInvalidStock      = dto.NewAppError(http.StatusBadRequest, "VALIDATION_ERROR", "Stock cannot be negative")
+	ErrInvalidStockType  = dto.NewAppError(http.StatusBadRequest, "VALIDATION_ERROR", "Type must be 'in' or 'out'")
+	ErrInvalidStockQty   = dto.NewAppError(http.StatusBadRequest, "VALIDATION_ERROR", "Quantity must be greater than 0")
 )
 
 type IProductService interface {
@@ -28,6 +31,8 @@ type IProductService interface {
 	GetProduct(id int64) (*models.Product, error)
 	UpdateProduct(id int64, req dto.UpdateProductRequest) (*models.Product, error)
 	DeleteProduct(id int64) error
+	AdjustStock(id int64, req dto.AdjustStockRequest) (*models.Product, error)
+	GetMovements(id int64) ([]models.StockMovement, error)
 }
 
 type ProductService struct {
@@ -169,4 +174,78 @@ func (s *ProductService) DeleteProduct(id int64) error {
 	}
 
 	return nil
+}
+
+func (s *ProductService) AdjustStock(id int64, req dto.AdjustStockRequest) (*models.Product, error) {
+	typ := strings.ToLower(strings.TrimSpace(req.Type))
+	if typ != "in" && typ != "out" {
+		return nil, ErrInvalidStockType
+	}
+
+	if req.Qty <= 0 {
+		return nil, ErrInvalidStockQty
+	}
+
+	var updatedProduct *models.Product
+	// Lock
+	err := s.productRepo.GetDB().Transaction(func(tx *gorm.DB) error {
+		product, err := s.productRepo.GetProductWithLock(tx, id)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrProductNotFound
+			}
+			return err
+		}
+
+		if typ == "out" && product.Stock < req.Qty {
+			return dto.NewAppError(
+				http.StatusConflict,
+				"INSUFFICIENT_STOCK",
+				fmt.Sprintf("Insufficient stock: %d available", product.Stock),
+			).WithAvailable(product.Stock)
+		}
+
+		newStock := product.Stock + req.Qty
+		if typ == "out" {
+			newStock = product.Stock - req.Qty
+		}
+
+		if err := s.productRepo.UpdateStock(tx, id, newStock); err != nil {
+			return err
+		}
+
+		movement := models.StockMovement{
+			ProductID: id,
+			Type:      typ,
+			Qty:       req.Qty,
+			Note:      strings.TrimSpace(req.Note),
+			CreatedAt: time.Now(),
+		}
+		if err := s.productRepo.CreateMovement(tx, &movement); err != nil {
+			return err
+		}
+
+		product.Stock = newStock
+		updatedProduct = product
+		return nil
+	})
+
+	if err != nil {
+		var appErr *dto.AppError
+		if errors.As(err, &appErr) {
+			return nil, appErr
+		}
+		return nil, dto.InternalError(err)
+	}
+
+	return updatedProduct, nil
+}
+
+func (s *ProductService) GetMovements(id int64) ([]models.StockMovement, error) {
+	_, err := s.GetProduct(id)
+	movements, err := s.productRepo.GetMovements(id)
+	if err != nil {
+		return nil, dto.InternalError(err)
+	}
+	return movements, nil
 }

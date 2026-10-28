@@ -12,5 +12,7 @@ func ProductRouter(router *gin.RouterGroup, handler *handlers.ProductHandler) {
 		products.POST("", handler.CreateProduct)
 		products.PUT("/:id", handler.UpdateProduct)
 		products.DELETE("/:id", handler.DeleteProduct)
+		products.POST("/:id/stock", handler.AdjustStock)
+		products.GET("/:id/movements", handler.GetMovements)
 	}
 }

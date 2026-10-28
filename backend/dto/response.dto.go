@@ -16,9 +16,11 @@ type BaseResponse[T any] struct {
 }
 
 type ErrorDetail struct {
-	Code    string      `json:"code"`
-	Message string      `json:"message"`
-	Details interface{} `json:"details,omitempty"`
+	Code      string      `json:"code"`
+	Message   string      `json:"message"`
+	Available *int        `json:"available,omitempty"`
+	SKU       string      `json:"sku,omitempty"`
+	Details   interface{} `json:"details,omitempty"`
 }
 
 type ErrorResponse struct {
@@ -37,6 +39,8 @@ type AppError struct {
 	StatusCode int    `json:"-"`
 	Code       string `json:"code"`
 	Message    string `json:"message"`
+	Available  *int   `json:"available,omitempty"`
+	SKU        string `json:"sku,omitempty"`
 }
 
 func (e *AppError) Error() string {
@@ -49,6 +53,16 @@ func NewAppError(statusCode int, code, message string) *AppError {
 		Code:       code,
 		Message:    message,
 	}
+}
+
+func (e *AppError) WithAvailable(qty int) *AppError {
+	e.Available = &qty
+	return e
+}
+
+func (e *AppError) WithSKU(sku string) *AppError {
+	e.SKU = sku
+	return e
 }
 
 func NewSuccessResponse[T any](data T, message ...string) BaseResponse[T] {
