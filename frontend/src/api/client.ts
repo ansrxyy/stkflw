@@ -8,6 +8,9 @@ import type {
   StockMovement,
   SummaryData,
   ProductFilterType,
+  OrderFilterType,
+  SalesOrder,
+  CreateOrderRequest,
   ApiErrorPayload,
 } from '../types'
 
@@ -39,6 +42,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     ...options,
     headers,
   })
+
   if (response.status === 204) {
     return {} as T
   }
@@ -65,7 +69,6 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
-  // Products
   async getProducts(params: {
     search?: string
     filter?: ProductFilterType
@@ -102,7 +105,6 @@ export const api = {
     })
   },
 
-  // Stock Adjustments
   async adjustStock(id: number, data: AdjustStockRequest): Promise<BaseResponse<Product>> {
     return request<BaseResponse<Product>>(`/products/${id}/stock`, {
       method: 'POST',
@@ -114,7 +116,45 @@ export const api = {
     return request<{ data: StockMovement[] }>(`/products/${id}/movements`)
   },
 
-  // Summary
+  async getOrders(params: {
+    search?: string
+    status?: OrderFilterType
+    page?: number
+    limit?: number
+  }): Promise<PaginatedResponse<SalesOrder>> {
+    const searchParams = new URLSearchParams()
+    if (params.search) searchParams.set('search', params.search)
+    if (params.status && params.status !== 'ALL') searchParams.set('status', params.status)
+    if (params.page) searchParams.set('page', String(params.page))
+    if (params.limit) searchParams.set('limit', String(params.limit))
+
+    const queryString = searchParams.toString()
+    return request<PaginatedResponse<SalesOrder>>(`/orders${queryString ? `?${queryString}` : ''}`)
+  },
+
+  async getOrder(id: number): Promise<SalesOrder> {
+    return request<SalesOrder>(`/orders/${id}`)
+  },
+
+  async createOrder(data: CreateOrderRequest, idempotencyKey?: string): Promise<SalesOrder> {
+    const headers: Record<string, string> = {}
+    if (idempotencyKey) {
+      headers['Idempotency-Key'] = idempotencyKey
+    }
+
+    return request<SalesOrder>('/orders', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(data),
+    })
+  },
+
+  async cancelOrder(id: number): Promise<BaseResponse<SalesOrder>> {
+    return request<BaseResponse<SalesOrder>>(`/orders/${id}/cancel`, {
+      method: 'POST',
+    })
+  },
+
   async getSummary(): Promise<{ data: SummaryData }> {
     return request<{ data: SummaryData }>('/summary')
   },
