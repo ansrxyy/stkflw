@@ -18,9 +18,15 @@ func main() {
 	if err := database.Migrate(db); err != nil {
 		log.Fatalf("failed to migrate database: %v", err)
 	}
+
 	productRepo := repository.NewProductRepo(db)
 	productService := service.NewProductService(productRepo)
 	productHandler := handlers.NewProductHandler(productService)
+
+	orderRepo := repository.NewOrderRepo(db)
+	orderService := service.NewOrderService(orderRepo, productRepo)
+	orderHandler := handlers.NewOrderHandler(orderService)
+
 	r := gin.New()
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
@@ -28,9 +34,10 @@ func main() {
 
 	// Router
 	router.ProductRouter(api, productHandler)
+	router.OrderRouter(api, orderHandler)
+
 	log.Println("Server is running on port 8080")
 	if err := r.Run(":8080"); err != nil {
 		log.Fatalf("Failed to run server: %v", err)
 	}
-
 }
