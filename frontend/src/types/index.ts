@@ -18,6 +18,27 @@ export interface StockMovement {
   created_at: string
 }
 
+export interface SalesOrderItem {
+  id: number
+  order_id: number
+  product_id?: number
+  sku: string
+  qty: number
+  unit_price: number
+  product?: Product
+}
+
+export interface SalesOrder {
+  id: number
+  customer: string
+  status: 'CREATED' | 'CANCELLED'
+  total: number
+  created_at: string
+  cancelled_at: string | null
+  idempotency_key?: string | null
+  items: SalesOrderItem[]
+}
+
 export interface PaginationMeta {
   page: number
   limit: number
@@ -68,6 +89,16 @@ export interface AdjustStockRequest {
   note?: string
 }
 
+export interface CreateOrderItemRequest {
+  sku: string
+  qty: number
+}
+
+export interface CreateOrderRequest {
+  customer: string
+  items: CreateOrderItemRequest[]
+}
+
 export interface SummaryData {
   total_products: number
   active_products: number
@@ -76,3 +107,4 @@ export interface SummaryData {
 }
 
 export type ProductFilterType = 'all' | 'active' | 'inactive' | 'low_stock'
+export type OrderFilterType = 'ALL' | 'CREATED' | 'CANCELLED'
