@@ -18,6 +18,9 @@ func main() {
 	if err := database.Migrate(db); err != nil {
 		log.Fatalf("[Migration] Failed to migrate database: %v", err)
 	}
+	if err := database.SeedIfEmpty(db); err != nil {
+		log.Fatalf("[Migration] Failed to seed database: %v", err)
+	}
 
 	log.Println("[Migration] Database migration finished.")
 }

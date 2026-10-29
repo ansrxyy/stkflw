@@ -18,6 +18,9 @@ func main() {
 	if err := database.Migrate(db); err != nil {
 		log.Fatalf("failed to migrate database: %v", err)
 	}
+	if err := database.SeedIfEmpty(db); err != nil {
+		log.Fatalf("failed to seed database: %v", err)
+	}
 
 	productRepo := repository.NewProductRepo(db)
 	productService := service.NewProductService(productRepo)
